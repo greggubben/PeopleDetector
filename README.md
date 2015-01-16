@@ -34,7 +34,7 @@ triggered again.
                                     V                  |
              TRIGGER(END_REARM_PIN) or END_TIME        |
                                     |                  |
-    READY  <------------------------+------------------+
+    READY  &lt;------------------------+------------------+
 
 </pre>
 
