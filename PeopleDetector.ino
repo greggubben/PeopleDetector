@@ -60,7 +60,8 @@
  * reset back to READY state no matter where it is.
  *
  * The typical congiguration is below with a single pin for triggering the
- * People Detector using a PIC sensor.  There is a single button for resetting
+ * People Detector using a PIC sensor (HC-SR501 Human Sensor Module Pyroelectric
+ * Infrared). There is a single button for resetting
  * People Detector state.  Each of the 4 states have an indicator LED and the
  * expection is to attach the animatron to the FIRE_PIN.
  *
@@ -110,6 +111,9 @@ int actionPin;
 bool waiting;
 
 void setup() {
+    // For debugging
+    //Serial.begin(9600);
+
     // Set up the trigger and input pins
     pinMode(END_READY_PIN, INPUT);
     pinMode(RESET_PIN, INPUT);
@@ -121,14 +125,13 @@ void setup() {
     pinMode(REARM_PIN, OUTPUT);
 
     changeState(READY);
-    
-    //Serial.begin(9600);
 }
 
 void loop() {
   
   // Assume there is nothing to do
   action = NONE;
+  //Serial.println("action=NONE");
 
   // Need current time for waiting count down
   currTime = millis();
@@ -150,7 +153,7 @@ void loop() {
   }
   
   // See if reset  (highest priority)
-  if (digitalRead(RESET_PIN) == HIGH) {
+  if (RESET_PIN != -1 && digitalRead(RESET_PIN) == HIGH) {
     action = RESET;
     //Serial.println("action=RESET");
   }
@@ -185,7 +188,6 @@ void loop() {
       break;
   }
   
-  //Serial.println("action=NONE");
 }
 
 /*

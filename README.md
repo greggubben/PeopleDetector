@@ -40,31 +40,32 @@ triggered again.
 
 The People Detector has 2 ways to advance through the states.  One is via an
 external event causing the Action Pin to go HIGH.  The other way is waiting
-for the END_TIME duration to elapse.
+for the END\_TIME duration to elapse.
 
 Each of the States have a pin which could TRIGGER and end of that state.  The
-naming convention for the pins are END_<i>state</i>_PIN.  A value of -1 indicates
+naming convention for the pins are END\_<i>state</i>\_PIN.  A value of -1 indicates
 not to look for an external event.
 
-When the <i>state</i>_TIME has a value greater than 0 the People Detector will
+When the <i>state</i>\_TIME has a value greater than 0 the People Detector will
 wait for the specified amount of milli-seconds before going to the next state.
 
-Using a <i>state</i>_TIME value of 0 and an END_<i>state</i>_PIN of -1 will cause the
-People Detector to skip that state.  If the <i>state</i>_TIME value is 0 and the
-END_<i>state</i>_PIN is not -1 then it will wait for the END_<i>state</i>_PIN to go
+Using a <i>state</i>\_TIME value of 0 and an END\_<i>state</i>\_PIN of -1 will cause the
+People Detector to skip that state.  If the <i>state</i>\_TIME value is 0 and the
+END_<i>state</i>\_PIN is not -1 then it will wait for the END\_<i>state</i>\_PIN to go
 HIGH.
 
-If both the END_<i>state</i>_PIN and <i>state</i>_TIME are specified the People Detector
-will wait for the specified amount of time or the END_<i>state</i>_PIN to go HIGH
+If both the END\_<i>state</i>\_PIN and <i>state</i>\_TIME are specified the People Detector
+will wait for the specified amount of time or the END\_<i>state</i>\_PIN to go HIGH
 whichever comes first.
 
-There is also a RESET_PIN defined that will cause the People Detector to
+There is also a RESET\_PIN defined that will cause the People Detector to
 reset back to READY state no matter where it is.
 
 The typical congiguration is below with a single pin for triggering the
-People Detector using a PIC sensor.  There is a single button for resetting
+People Detector using a PIC sensor(HC-SR501 Human Sensor Module Pyroelectric
+Infrared).  There is a single button for resetting
 People Detector state.  Each of the 4 states have an indicator LED and the
-expection is to attach the animatron to the FIRE_PIN.
+expection is to attach the animatron to the FIRE\_PIN.
 
 Created by: Gregg Ubben and Mark Lebioda
 Created on: 06-Jan-2015
