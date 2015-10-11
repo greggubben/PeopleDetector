@@ -18,4 +18,9 @@ enum Action {NONE, TRIGGER, END_TIME, RESET};
 //enum State {READY=READY_PIN, DELAY=DELAY_PIN, FIRE=FIRE_PIN, REARM=REARM_PIN};
 enum State {READY, DELAY, FIRE, REARM};
 
+#define SECONDS 1000
+#define MINUTES 60000
+#define HOURS 360000
+#define TIME_CALC(x, y) (x * y)
+
 #endif

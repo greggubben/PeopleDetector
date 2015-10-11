@@ -110,10 +110,10 @@ const int REARM_PIN = NOTUSED;
 // This is either:
 //   The amount of time if the _TIME_PIN value above is NOTUSED
 //   The max amount of time if the _TIME_PIN is assigned.
-const unsigned long READY_TIME = 120000;  // 10 minutes if not triggered
-const unsigned long DELAY_TIME = 2000;    // 2 seconds
-const unsigned long FIRE_TIME  = 2000;    // 2 seconds
-const unsigned long REARM_TIME = 20000;   // 20 seconds
+const unsigned long READY_TIME = TIME_CALC(10, MINUTES);  // 10 minutes if not triggered
+const unsigned long DELAY_TIME = TIME_CALC(30, SECONDS); // 2 seconds
+const unsigned long FIRE_TIME  = TIME_CALC(10, SECONDS);    // 2 seconds
+const unsigned long REARM_TIME = TIME_CALC(20, MINUTES);   // 20 seconds
 
 const unsigned long BLINK_TIME = 1000;    // 1 second
 
@@ -236,28 +236,28 @@ void changeState (enum State newstate) {
   switch (newstate) {
   case (READY):
       // Ready for someone to trigger
-      wait(READY_TIME, END_READY_PIN);
+      wait(READY_TIME_PIN, READY_TIME, END_READY_PIN);
       indicatorPin = READY_PIN;
       statename = "READY";
       break;
 
   case (DELAY):
       // Triggered - wait for a delayed fire
-      wait(DELAY_TIME, END_DELAY_PIN);
+      wait(DELAY_TIME_PIN, DELAY_TIME, END_DELAY_PIN);
       indicatorPin = DELAY_PIN;
       statename = "DELAY";
       break;
 
   case (FIRE):
       // Fire the animation
-      wait(FIRE_TIME, END_FIRE_PIN);
+      wait(FIRE_TIME_PIN, FIRE_TIME, END_FIRE_PIN);
       indicatorPin = FIRE_PIN;
       statename = "FIRE";
       break;
 
   case (REARM):
       // Wait before arming again.
-      wait(REARM_TIME, END_REARM_PIN);
+      wait(REARM_TIME_PIN, REARM_TIME, END_REARM_PIN);
       indicatorPin = REARM_PIN;
       statename = "REARM";
       break;
@@ -268,10 +268,16 @@ void changeState (enum State newstate) {
 #ifdef SERIAL_DEBUG
   Serial.print("state=");
   Serial.println(statename);
+  printAllDelays();
 #endif
   
   // Indicate current state
   writePin(indicatorPin, HIGH);
+
+#ifdef SERIAL_DEBUG
+  Serial.println();
+#endif
+
 }
 
 
@@ -289,15 +295,23 @@ void allLedsOff() {
 /*
  * Setup to wait
  */
-void wait (unsigned long waittime, int waitPin) {
-  if (waitPin != NOTUSED && waittime == 0) {
+void wait (int waitTimePin, unsigned long waitTime, int waitPin) {
+  if (waitPin != NOTUSED && waitTime == 0) {
     // Only using a pin HIGH to for action not wait time
     waiting = false;
   }
   else {
     // set up wait time
     waiting = true;
-    waitUntil = currTime + waittime;
+    unsigned long waitValue = getWaitValue(waitTimePin, waitTime);
+    waitUntil = currTime + waitValue;
+#ifdef SERIAL_DEBUG
+    Serial.print("Wait for ");
+    Serial.print(waitValue);
+    Serial.print(" millis out of ");
+    Serial.print(waitTime);
+    Serial.println();
+#endif
   }
   actionPin = waitPin;
 }
@@ -309,9 +323,34 @@ bool doneWaiting() {
   return (waiting && currTime > waitUntil);
 }
 
+void printAllDelays() {
+  unsigned long waitValue;
+  waitValue = getWaitValue(READY_TIME_PIN, READY_TIME);
+  Serial.print("READY wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(DELAY_TIME_PIN, DELAY_TIME);
+  Serial.print("DELAY wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(FIRE_TIME_PIN, FIRE_TIME);
+  Serial.print("FIRE  wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(REARM_TIME_PIN, REARM_TIME);
+  Serial.print("REARM wait ");
+  Serial.println(waitValue);
+}
+
 /*****************************************
  * Pin Helper Functions
  ****************************************/
+
+unsigned long getWaitValue(int waitTimePin, unsigned long waitTime) {
+  unsigned long returnWaitTime = waitTime;
+  if (waitTimePin != NOTUSED) {
+    int rawVal = analogRead(waitTimePin);
+    returnWaitTime = map(rawVal, 0, 1023, 0, waitTime);
+  }
+  return returnWaitTime;
+}
 
 /*
  * Setup the Pin
