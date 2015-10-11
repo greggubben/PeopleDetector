@@ -67,6 +67,7 @@
  *
  * Created by: Gregg Ubben and Mark Lebioda
  * Created on: 06-Jan-2015
+ * Modified on: 10-Oct-2015
  *
  */
 
@@ -74,56 +75,81 @@
 // This is needed due to limitations with the Arduino compiler handling enums
 #include "PeopleDetector.h"
 
-// Define inputs
-// a -1 indicates not to look for an external event.
-// Make sure these are defined as INPUT in setup()
-const int END_READY_PIN = 7;
-const int END_DELAY_PIN = -1;
-const int END_FIRE_PIN = -1;
-const int END_REARM_PIN = -1;
-const int RESET_PIN = 9;
+// Uncomment the following line to debug via the Serial Monitor
+#define SERIAL_DEBUG
+
+#define NOTUSED -1
+
+// Define digital inputs for triggering actions
+// NOTUSED (-1) indicates not to look for an external event.
+const int END_READY_PIN = 4;        // Trigger Pin
+const int END_DELAY_PIN = NOTUSED;
+const int END_FIRE_PIN = NOTUSED;
+const int END_REARM_PIN = NOTUSED;
+const int RESET_PIN = NOTUSED;
+const int BLINK_PIN = 13;
+
+// Define analog inputs for changing delay times
+// NOTUSED (-1) indicates not to look for external time adjustments.
+// If set the max value is defined by appropriate _TIME entry below.
+const int READY_TIME_PIN = A1;
+const int DELAY_TIME_PIN = A2;
+const int FIRE_TIME_PIN = A3;
+const int REARM_TIME_PIN = A4;
+
+// Define outputs
+// State indicator LEDs and Signals
+// NOTUSED (-1) indicates not send signal.
+const int READY_PIN = 5;
+const int DELAY_PIN = NOTUSED;
+const int FIRE_PIN = 6;
+const int REARM_PIN = NOTUSED;
+
+// Wait time in Millis for each state
+// Use 0 to indicate skipping the state.
+// This is either:
+//   The amount of time if the _TIME_PIN value above is NOTUSED
+//   The max amount of time if the _TIME_PIN is assigned.
+const unsigned long READY_TIME = 120000;  // 10 minutes if not triggered
+const unsigned long DELAY_TIME = 2000;    // 2 seconds
+const unsigned long FIRE_TIME  = 2000;    // 2 seconds
+const unsigned long REARM_TIME = 20000;   // 20 seconds
+
+const unsigned long BLINK_TIME = 1000;    // 1 second
 
 // Current Action being performed
 Action action = NONE;
 
-// Wait time in Millis for each state
-// Use 0 to indicate skipping the state.
-const unsigned long READY_TIME = 120000;  // 2 minutes if not triggered
-const unsigned long DELAY_TIME = 1000;    // 1 second
-const unsigned long FIRE_TIME = 500;      // 1/2 second
-const unsigned long REARM_TIME = 20000;   // 20 seconds
-
 // Current State this is in
 State state = READY;
-
-// State indicator LEDs and Signals
-// a -1 indicates not send signal.
-// Make sure these are defined as OUTPUT in setup()
-const int READY_PIN = 13;
-const int DELAY_PIN = 2;
-const int FIRE_PIN = 3;
-const int REARM_PIN = 4;
 
 // Transient variables
 unsigned long currTime;
 unsigned long waitUntil;
 int actionPin;
 bool waiting;
+bool blinkLedState = false;
+unsigned long nextBlinkMillis = 0;
 
 void setup() {
     // For debugging
-    //Serial.begin(9600);
+#ifdef SERIAL_DEBUG
+    Serial.begin(9600);
+#endif
 
     // Set up the trigger and input pins
-    pinMode(END_READY_PIN, INPUT);
-    pinMode(RESET_PIN, INPUT);
+    setupPin(END_READY_PIN, INPUT);
+    setupPin(RESET_PIN, INPUT);
     
     // Set up the indicator and output pins
-    pinMode(READY_PIN, OUTPUT);
-    pinMode(DELAY_PIN, OUTPUT);
-    pinMode(FIRE_PIN, OUTPUT);
-    pinMode(REARM_PIN, OUTPUT);
+    setupPin(READY_PIN, OUTPUT);
+    setupPin(DELAY_PIN, OUTPUT);
+    setupPin(FIRE_PIN, OUTPUT);
+    setupPin(REARM_PIN, OUTPUT);
 
+    setupPin(BLINK_PIN, OUTPUT);
+
+    blinkLed();
     changeState(READY);
 }
 
@@ -131,7 +157,6 @@ void loop() {
   
   // Assume there is nothing to do
   action = NONE;
-  //Serial.println("action=NONE");
 
   // Need current time for waiting count down
   currTime = millis();
@@ -142,20 +167,26 @@ void loop() {
   if (doneWaiting()) {
     // Done waiting
     action = END_TIME;
-    //Serial.println("action=END_TIME");
+#ifdef SERIAL_DEBUG
+    Serial.println("action=END_TIME");
+#endif
   }
   
   // See if triggered  (medium priotity)
   // TRIGGER is a valid action only in READY state
-  if (actionPin != -1 && digitalRead(actionPin) == HIGH) {
+  if (readPin(actionPin, LOW) == HIGH) {
     action = TRIGGER;
-    //Serial.println("action=TRIGGER");
+#ifdef SERIAL_DEBUG
+    Serial.println("action=TRIGGER");
+#endif
   }
   
   // See if reset  (highest priority)
-  if (RESET_PIN != -1 && digitalRead(RESET_PIN) == HIGH) {
+  if (readPin(RESET_PIN, LOW) == HIGH) {
     action = RESET;
-    //Serial.println("action=RESET");
+#ifdef SERIAL_DEBUG
+    Serial.println("action=RESET");
+#endif
   }
 
   // Respond to the action
@@ -187,7 +218,9 @@ void loop() {
       // Nothing to do
       break;
   }
-  
+
+  // Blink the LED to show it is working
+  blinkLed();
 }
 
 /*
@@ -195,7 +228,7 @@ void loop() {
  */
 void changeState (enum State newstate) {
   int indicatorPin;
-  //char *statename;
+  char *statename;
   
   // Turn all indicators off because we are changing state
   allLedsOff();
@@ -205,39 +238,40 @@ void changeState (enum State newstate) {
       // Ready for someone to trigger
       wait(READY_TIME, END_READY_PIN);
       indicatorPin = READY_PIN;
-      //statename = "READY";
+      statename = "READY";
       break;
 
   case (DELAY):
       // Triggered - wait for a delayed fire
       wait(DELAY_TIME, END_DELAY_PIN);
       indicatorPin = DELAY_PIN;
-      //statename = "DELAY";
+      statename = "DELAY";
       break;
 
   case (FIRE):
       // Fire the animation
       wait(FIRE_TIME, END_FIRE_PIN);
       indicatorPin = FIRE_PIN;
-      //statename = "FIRE";
+      statename = "FIRE";
       break;
 
   case (REARM):
       // Wait before arming again.
       wait(REARM_TIME, END_REARM_PIN);
       indicatorPin = REARM_PIN;
-      //statename = "REARM";
+      statename = "REARM";
       break;
   }
   
   state = newstate;
-  //Serial.print("state=");
-  //Serial.println(statename);
+
+#ifdef SERIAL_DEBUG
+  Serial.print("state=");
+  Serial.println(statename);
+#endif
   
-  if (indicatorPin != -1) {
-      // Indicate current state
-      digitalWrite(indicatorPin, HIGH);
-  }
+  // Indicate current state
+  writePin(indicatorPin, HIGH);
 }
 
 
@@ -246,17 +280,17 @@ void changeState (enum State newstate) {
  * Most likely there is a state change.
  */
 void allLedsOff() {
-    digitalWrite(READY_PIN, LOW);
-    digitalWrite(DELAY_PIN, LOW);
-    digitalWrite(FIRE_PIN, LOW);
-    digitalWrite(REARM_PIN, LOW);
+    writePin(READY_PIN, LOW);
+    writePin(DELAY_PIN, LOW);
+    writePin(FIRE_PIN, LOW);
+    writePin(REARM_PIN, LOW);
 }
 
 /*
  * Setup to wait
  */
 void wait (unsigned long waittime, int waitPin) {
-  if (waitPin != -1 && waittime == 0) {
+  if (waitPin != NOTUSED && waittime == 0) {
     // Only using a pin HIGH to for action not wait time
     waiting = false;
   }
@@ -275,4 +309,48 @@ bool doneWaiting() {
   return (waiting && currTime > waitUntil);
 }
 
+/*****************************************
+ * Pin Helper Functions
+ ****************************************/
 
+/*
+ * Setup the Pin
+ */
+void setupPin (int pin, uint8_t mode) {
+  if (pin != NOTUSED) {
+    pinMode(pin, mode);
+  }
+}
+
+
+/*
+ * Write to the Pin
+ */
+void writePin (int pin, uint8_t state) {
+  if (pin != NOTUSED) {
+    digitalWrite(pin, state);
+  }
+}
+
+
+/*
+ * Read from the Pin
+ */
+int readPin (int pin, int deflt) {
+  int retVal = deflt;
+  if (pin != NOTUSED) {
+    retVal = digitalRead(pin);
+  }
+  return retVal;
+}
+
+/*
+ * Blink the LED to show it is working
+ */
+void blinkLed() {
+  if (currTime > nextBlinkMillis) {
+    nextBlinkMillis = currTime + BLINK_TIME;
+    blinkLedState = !blinkLedState;
+    writePin(BLINK_PIN, blinkLedState);
+  }
+}
