@@ -82,7 +82,7 @@
 
 // Define digital inputs for triggering actions
 // NOTUSED (-1) indicates not to look for an external event.
-const int END_READY_PIN = 4;        // Trigger Pin
+const int END_READY_PIN = 2;        // Trigger Pin
 const int END_DELAY_PIN = NOTUSED;
 const int END_FIRE_PIN = NOTUSED;
 const int END_REARM_PIN = NOTUSED;
@@ -92,18 +92,18 @@ const int BLINK_PIN = 13;
 // Define analog inputs for changing delay times
 // NOTUSED (-1) indicates not to look for external time adjustments.
 // If set the max value is defined by appropriate _TIME entry below.
-const int READY_TIME_PIN = A1;
+const int READY_TIME_PIN = A3;
 const int DELAY_TIME_PIN = A2;
-const int FIRE_TIME_PIN = A3;
-const int REARM_TIME_PIN = A4;
+const int FIRE_TIME_PIN = A1;
+const int REARM_TIME_PIN = A0;
 
 // Define outputs
 // State indicator LEDs and Signals
 // NOTUSED (-1) indicates not send signal.
-const int READY_PIN = 5;
-const int DELAY_PIN = NOTUSED;
-const int FIRE_PIN = 6;
-const int REARM_PIN = NOTUSED;
+const int READY_PIN = 7;
+const int DELAY_PIN = 8;
+const int FIRE_PIN = 9;
+const int REARM_PIN = 10;
 
 // Wait time in Millis for each state
 // Use 0 to indicate skipping the state.
