@@ -228,6 +228,12 @@ void loop() {
 
   // Blink the LED to show it is working
   blinkLed();
+
+#ifdef SERIAL_DEBUG
+  if (requested2Tune()) {
+    performTuning();
+  }
+#endif
 }
 
 /*
@@ -406,6 +412,29 @@ void printWait(unsigned long waitValue, unsigned long waitTime) {
     Serial.println("No Waiting");
   }
 
+}
+
+bool requested2Tune() {
+  if (Serial.available() > 0) {
+    int inByte = Serial.read();
+    if (inByte == 't') {
+      return true;
+    }
+  }
+  return false;
+}
+
+void performTuning() {
+  Serial.println("Entering Tuning Mode");
+  bool tuning = true;
+  while (tuning) {
+    if (requested2Tune()) {
+      tuning = false;
+    }
+    else {
+      
+    }
+  }
 }
 
 void printAllDelays() {
