@@ -78,8 +78,6 @@
 // Uncomment the following line to debug via the Serial Monitor
 #define SERIAL_DEBUG
 
-#define NOTUSED -1
-
 // Define digital inputs for triggering actions
 // NOTUSED (-1) indicates not to look for an external event.
 const int END_READY_PIN = 2;        // Trigger Pin
@@ -118,10 +116,10 @@ const unsigned long REARM_TIME = TIME_CALC(20, MINUTES);   // 20 seconds
 const unsigned long BLINK_TIME = 1000;    // 1 second
 
 // Current Action being performed
-Action action = NONE;
+Action action = ACTION_NONE;
 
 // Current State this is in
-State state = READY;
+State state = STATE_READY;
 
 // Transient variables
 unsigned long currTime;
@@ -131,6 +129,10 @@ bool waiting;
 bool blinkLedState = false;
 unsigned long nextBlinkMillis = 0;
 
+
+/*
+ * Initialize the Inputs, Outputs, and Variables
+ */
 void setup() {
     // For debugging
 #ifdef SERIAL_DEBUG
@@ -150,13 +152,17 @@ void setup() {
     setupPin(BLINK_PIN, OUTPUT);
 
     blinkLed();
-    changeState(READY);
+    changeState(STATE_READY);
 }
 
+
+/*
+ * Continue looking for Actions performed and responding with appropriate state changes.
+ */
 void loop() {
   
   // Assume there is nothing to do
-  action = NONE;
+  action = ACTION_NONE;
 
   // Need current time for waiting count down
   currTime = millis();
@@ -166,54 +172,55 @@ void loop() {
   // Waiting for time to elapse (lowest priority)
   if (doneWaiting()) {
     // Done waiting
-    action = END_TIME;
+    action = ACTION_END_TIME;
 #ifdef SERIAL_DEBUG
-    Serial.println("action=END_TIME");
+    printAction();
 #endif
   }
   
   // See if triggered  (medium priotity)
   // TRIGGER is a valid action only in READY state
   if (readPin(actionPin, LOW) == HIGH) {
-    action = TRIGGER;
+    action = ACTION_TRIGGER;
 #ifdef SERIAL_DEBUG
-    Serial.println("action=TRIGGER");
+    printAction();
 #endif
   }
   
   // See if reset  (highest priority)
   if (readPin(RESET_PIN, LOW) == HIGH) {
-    action = RESET;
+    action = ACTION_RESET;
 #ifdef SERIAL_DEBUG
-    Serial.println("action=RESET");
+    printAction();
 #endif
   }
 
   // Respond to the action
   switch (action) {
-  case (RESET):
-      changeState(READY);
+  case (ACTION_RESET):
+      changeState(STATE_READY);
       break;
   
-  case (END_TIME):
-  case (TRIGGER):
+  case (ACTION_END_TIME):
+  case (ACTION_TRIGGER):
+      // Advance to next state
       switch (state) {
-      case (READY):
-          changeState(DELAY);
+      case (STATE_READY):
+          changeState(STATE_DELAY);
           break;
-      case (DELAY):
-          changeState(FIRE);
+      case (STATE_DELAY):
+          changeState(STATE_FIRE);
           break;
-      case (FIRE):
-          changeState(REARM);
+      case (STATE_FIRE):
+          changeState(STATE_REARM);
           break;
-      case (REARM):
-          changeState(READY);
+      case (STATE_REARM):
+          changeState(STATE_READY);
           break;
       }
       break;
 
-  case (NONE):
+  case (ACTION_NONE):
   default:
       // Nothing to do
       break;
@@ -226,48 +233,42 @@ void loop() {
 /*
  * Change to a new state.
  */
-void changeState (enum State newstate) {
+void changeState (State newstate) {
   int indicatorPin;
-  char *statename;
   
   // Turn all indicators off because we are changing state
   allLedsOff();
   
   switch (newstate) {
-  case (READY):
+  case (STATE_READY):
       // Ready for someone to trigger
       wait(READY_TIME_PIN, READY_TIME, END_READY_PIN);
       indicatorPin = READY_PIN;
-      statename = "READY";
       break;
 
-  case (DELAY):
+  case (STATE_DELAY):
       // Triggered - wait for a delayed fire
       wait(DELAY_TIME_PIN, DELAY_TIME, END_DELAY_PIN);
       indicatorPin = DELAY_PIN;
-      statename = "DELAY";
       break;
 
-  case (FIRE):
+  case (STATE_FIRE):
       // Fire the animation
       wait(FIRE_TIME_PIN, FIRE_TIME, END_FIRE_PIN);
       indicatorPin = FIRE_PIN;
-      statename = "FIRE";
       break;
 
-  case (REARM):
+  case (STATE_REARM):
       // Wait before arming again.
       wait(REARM_TIME_PIN, REARM_TIME, END_REARM_PIN);
       indicatorPin = REARM_PIN;
-      statename = "REARM";
       break;
   }
   
   state = newstate;
 
 #ifdef SERIAL_DEBUG
-  Serial.print("state=");
-  Serial.println(statename);
+  printState();
   printAllDelays();
 #endif
   
@@ -275,7 +276,7 @@ void changeState (enum State newstate) {
   writePin(indicatorPin, HIGH);
 
 #ifdef SERIAL_DEBUG
-  Serial.println();
+  printEndLoop();
 #endif
 
 }
@@ -306,11 +307,7 @@ void wait (int waitTimePin, unsigned long waitTime, int waitPin) {
     unsigned long waitValue = getWaitValue(waitTimePin, waitTime);
     waitUntil = currTime + waitValue;
 #ifdef SERIAL_DEBUG
-    Serial.print("Wait for ");
-    Serial.print(waitValue);
-    Serial.print(" millis out of ");
-    Serial.print(waitTime);
-    Serial.println();
+    printWait(waitValue, waitTime);
 #endif
   }
   actionPin = waitPin;
@@ -320,23 +317,7 @@ void wait (int waitTimePin, unsigned long waitTime, int waitPin) {
  * See if we are done waiting
  */
 bool doneWaiting() {
-  return (waiting && currTime > waitUntil);
-}
-
-void printAllDelays() {
-  unsigned long waitValue;
-  waitValue = getWaitValue(READY_TIME_PIN, READY_TIME);
-  Serial.print("READY wait ");
-  Serial.println(waitValue);
-  waitValue = getWaitValue(DELAY_TIME_PIN, DELAY_TIME);
-  Serial.print("DELAY wait ");
-  Serial.println(waitValue);
-  waitValue = getWaitValue(FIRE_TIME_PIN, FIRE_TIME);
-  Serial.print("FIRE  wait ");
-  Serial.println(waitValue);
-  waitValue = getWaitValue(REARM_TIME_PIN, REARM_TIME);
-  Serial.print("REARM wait ");
-  Serial.println(waitValue);
+  return (waiting && (currTime > waitUntil));
 }
 
 /*****************************************
@@ -393,3 +374,53 @@ void blinkLed() {
     writePin(BLINK_PIN, blinkLedState);
   }
 }
+
+
+/*****************************************
+ * Serial Debugging Helper Functions
+ ****************************************/
+
+void printAction() {
+  Serial.print("Action = ");
+  Serial.println(ActionStrings[action]);
+}
+
+void printState() {
+  Serial.print("State = ");
+  Serial.println(StateStrings[state]);
+}
+
+void printEndLoop() {
+  Serial.println();
+}
+
+void printWait(unsigned long waitValue, unsigned long waitTime) {
+  if (waiting) {
+    Serial.print("Wait for ");
+    Serial.print(waitValue);
+    Serial.print(" millis out of ");
+    Serial.print(waitTime);
+    Serial.println();
+  }
+  else {
+    Serial.println("No Waiting");
+  }
+
+}
+
+void printAllDelays() {
+  unsigned long waitValue;
+  waitValue = getWaitValue(READY_TIME_PIN, READY_TIME);
+  Serial.print("READY wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(DELAY_TIME_PIN, DELAY_TIME);
+  Serial.print("DELAY wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(FIRE_TIME_PIN, FIRE_TIME);
+  Serial.print("FIRE  wait ");
+  Serial.println(waitValue);
+  waitValue = getWaitValue(REARM_TIME_PIN, REARM_TIME);
+  Serial.print("REARM wait ");
+  Serial.println(waitValue);
+}
+
